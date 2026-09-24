@@ -167,7 +167,7 @@ except urllib.error.HTTPError as e:
 # ── WebSocket endpoint accessible ────────────────────────────────────────────
 try:
     ws_r = req.Request(f"{BASE}/ws", headers={"Connection": "Upgrade", "Upgrade": "websocket",
-                                               "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+                                               "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",  # RFC 6455 sample nonce  gitleaks:allow
                                                "Sec-WebSocket-Version": "13"})
     req.urlopen(ws_r, timeout=2)
 except Exception as e:
