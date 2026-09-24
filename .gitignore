@@ -1,0 +1,117 @@
+# Config with secrets
+config.ini
+config.tradier.ini
+config.sniper5k.ini
+config.ibkr-paper.ini
+config.lime.ini
+.env
+.env.local
+.env.tradier
+.env.sniper5k
+.env.ibkr-paper
+.env.lime
+scripts/deploy/deploy.env
+
+# Secondary (Tradier) instance state — live DB + logs, never commit
+data-tradier/
+logs-tradier/
+data-sniper5k/
+logs-sniper5k/
+data-ibkr-paper/
+logs-ibkr-paper/
+data-lime/
+logs-lime/
+
+# VM state backups (contain .env, keys/, live DBs) — never commit
+backups/
+
+# Claude memory + skills dumps (trading detail, bot IDs) — never commit
+CLAUDE-MEMORY.md
+SKILLS.md
+
+# Databases — broad glob so new DB names (trading.db, etc.) never leak
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+server.log
+*.log
+*.log.[0-9]
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.python-version
+
+# OS / editors
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Forwarder discovery artifacts
+forwarder_setup_results.json
+
+# Service account keys / credentials (NEVER commit)
+keys/*.json
+keys/*.pem
+
+# Memory / tooling
+memory/
+
+# Vendored reference SDKs (kept locally for reference, not committed)
+vendor/
+
+# Scratch / debug artifacts from one-off sessions
+scratch/
+
+# Knowledge-graph build output (graphify skill)
+graphify-out/
+.graphify_python
+.graphifyignore
+
+# Raw Discord message dumps from analyst audits — third-party content,
+# not for source control. Keep on local disk only.
+discord_*d/
+discord 365/
+feed.txt
+iren_out.txt
+_ibark_src.tgz
+
+# Stranded directory after restructure (Windows file-handle locks; safe to delete manually)
+files(4)/
+
+# Claude Code local state (per-user allowlist, scheduled task lock)
+.claude/
+
+# monitoring secret files (CF Access token, Alertmanager Discord webhook,
+# Grafana Cloud remote_write token). Ignore the whole directory and re-admit
+# only the README — listing filenames one by one meant every NEW secret
+# dropped in here was committable by default.
+monitoring/secrets/*
+!monitoring/secrets/README.md
+discord-analytics/
+
+# Ad-hoc analyst/alert dumps written by scripts/ops probes (root-level scratch).
+inv.json
+out_*.json
+runs*.txt
+
+# The Discord VM-control Lambda is deployed from a built bundle; only the
+# handler is source. pkg/ is vendored deps and function.zip is the 2MB upload.
+scripts/deploy/discord-vm-control/pkg/
+scripts/deploy/discord-vm-control/function.zip
+
+# Self-hosted GitHub Actions runner. The setup notes hold a live registration
+# token (short-lived, but a credential), and actions-runner/ is a downloaded
+# binary tree with its own credentials once configured — neither is source.
+scripts/ops/self-hosted runner.md
+actions-runner/

@@ -1,0 +1,108 @@
+name: relaybot
+
+# Bounded json-file logs so container stdout can't fill the VM disk (the disk
+# alarm is the safety net; this is the prevention). ~50MB/container ceiling.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  relaybot:
+    image: ${RELAYBOT_IMAGE:-relaybot:local}
+    build: .
+    # Loopback-only. Put a reverse proxy with auth in front before exposing it.
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    environment:
+      # SQLite + WAL companion files (.wal/.shm) live in /app/data/, which
+      # is a writable bind mount. /app/ root stays read-only.
+      - TRADER_DATABASE_URL=sqlite:////app/data/trader.db
+    # Container runs as uid:gid 1000:1000 (matches host `ubuntu`), so files
+    # in the bind mounts below are accessible from /home/ubuntu without sudo.
+    volumes:
+      # config.ini writable so /api/config POST takes effect
+      - ./config.ini:/app/config.ini
+      # SQLite DB + WAL siblings live here (writable dir, not single file)
+      - ./data:/app/data
+      # Logs persist for postmortems
+      - ./logs:/app/logs
+      # GCP service account read-only (vision OCR + Vertex AI)
+      - ./keys:/app/keys:ro
+    restart: unless-stopped
+    logging: *default-logging
+    # Defense-in-depth: drop kernel caps, no new privs, read-only root FS
+    # (logs/db/config above remain writable through volume mounts).
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - relaybotnet
+    # IB Gateway / TWS runs on the host. Set IBKR_HOST=host.docker.internal
+    # in .env so the container reaches it through host-gateway.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional Discord button panel (Bot B) to start/stop/restart the trader.
+  # `docker compose --profile control up -d relaybot-control`
+  relaybot-control:
+    image: ${RELAYBOT_IMAGE:-relaybot:local}
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - .env
+    environment:
+      - RELAYBOT_CONTAINER_NAME=relaybot-relaybot-1
+      # IB Gateway buttons (GW Status / GW Logs / GW Restart). Off unless the
+      # host actually runs the gateway — set IBGW_CONTROL_ENABLED=1 in .env.
+      # When off the three buttons are removed from the panel.
+      - IBGW_CONTROL_ENABLED=${IBGW_CONTROL_ENABLED:-}
+      - IBGW_UNIT=${IBGW_UNIT:-ibgateway}
+      # Panel title — tells multiple hosts' panels apart.
+      - CONTROL_PANEL_TITLE=${CONTROL_PANEL_TITLE:-}
+      # Image name for the short-lived nsenter helper that reaches host
+      # systemd; same image as this container, so nothing extra to pull.
+      - RELAYBOT_IMAGE=${RELAYBOT_IMAGE:-relaybot:local}
+    # Container runs as uid 1000 (trader). docker.sock on the host is
+    # owned by root:docker (gid 999), so the trader user inside this
+    # container needs to belong to gid 999 to write to the socket.
+    # group_add adds a supplementary group; user stays as uid 1000.
+    group_add:
+      - "999"
+    volumes:
+      # Docker socket so the daemon can issue container start/stop/restart
+      # against the trader container from inside this one. Mounted read-write
+      # because Python docker SDK uses POST endpoints. Security note: any
+      # process with docker.sock = root on host. Acceptable here because
+      # daemon code is hand-audited and the container is non-privileged.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./logs:/app/logs
+    command: ["python", "-m", "app.analytics.trader_control"]
+    # Disable the inherited Dockerfile HEALTHCHECK (which curls /api/health
+    # on :8000 — irrelevant; this daemon doesn't serve HTTP). Without
+    # this the container shows "unhealthy" forever.
+    healthcheck:
+      disable: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    profiles:
+      - control
+
+networks:
+  relaybotnet:
+    driver: bridge

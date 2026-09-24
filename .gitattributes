@@ -1,0 +1,35 @@
+# Default — let git auto-detect text vs binary
+* text=auto
+
+# Shell scripts: always LF (running on Linux VM, bash hates \r)
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Python, YAML, config: LF
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+
+# Web assets
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+
+# Dockerfile / compose
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.db binary
+*.sqlite binary
+*.pdf binary

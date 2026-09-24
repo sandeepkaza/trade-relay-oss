@@ -1,0 +1,46 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+.pytest_cache/
+.venv/
+venv/
+dist/
+build/
+*.log
+.env
+.env.*
+!.env.example
+keys/
+*.pem
+*.key
+config.ini
+logs/
+.git/
+.gitignore
+docs/
+tests/
+*.md
+# Build/repo cruft that shouldn't ship in the runtime image
+vendor/
+graphify-out/
+scripts/
+scratch/
+node_modules/
+.claude/
+bin/
+.idea/
+.vscode/
+*.sqlite
+*.sqlite3
+# Archives & bulk data dumps — must never ship in the runtime image (COPY . .)
+*.tgz
+*.tar
+*.tar.gz
+*.gz
+*.zip
+discord 365/
+feed.txt
+iren_out.txt
+*_out.txt

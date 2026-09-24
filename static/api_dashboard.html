@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Monitor - Discord Trader</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 20px; background: #1a1a2e; color: #eee; }
+        h1 { color: #00d9ff; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .card { background: #16213e; padding: 20px; border-radius: 10px; border: 1px solid #0f3460; }
+        .card h2 { margin-top: 0; color: #e94560; border-bottom: 2px solid #0f3460; padding-bottom: 10px; }
+        .metric { display: flex; justify-content: space-between; margin: 10px 0; padding: 8px; background: #0f3460; border-radius: 5px; }
+        .metric-label { color: #a0a0a0; }
+        .metric-value { font-weight: bold; color: #00d9ff; }
+        .metric-value.error { color: #e94560; }
+        .metric-value.warning { color: #ffa500; }
+        .metric-value.success { color: #00ff88; }
+        .failures { max-height: 200px; overflow-y: auto; font-size: 12px; }
+        .failure-item { padding: 8px; margin: 5px 0; background: #2d132c; border-radius: 5px; border-left: 3px solid #e94560; }
+        .refresh-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #00d9ff; color: #1a1a2e; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .refresh-btn:hover { background: #00a8cc; }
+        .timestamp { color: #a0a0a0; font-size: 12px; }
+        .endpoint { font-size: 11px; color: #666; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #0f3460; }
+        th { color: #00d9ff; }
+        .status-ok { color: #00ff88; }
+        .status-warn { color: #ffa500; }
+        .status-error { color: #e94560; }
+    </style>
+</head>
+<body>
+    <h1>🔍 API Monitor Dashboard</h1>
+    <p class="timestamp">Last updated: <span id="lastUpdate">-</span> | Uptime: <span id="uptime">-</span></p>
+    <button class="refresh-btn" onclick="loadMetrics()">↻ Refresh</button>
+    
+    <div class="grid" id="dashboard">
+        <div class="card">
+            <h2>Discord Bot API</h2>
+            <div id="discord-metrics">Loading...</div>
+        </div>
+        <div class="card">
+            <h2>Public.com API</h2>
+            <div id="public-metrics">Loading...</div>
+        </div>
+        <div class="card">
+            <h2>Discord Webhook</h2>
+            <div id="webhook-metrics">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        async function loadMetrics() {
+            try {
+                const response = await fetch('/api/metrics');
+                const data = await response.json();
+                
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                document.getElementById('uptime').textContent = formatDuration(data.uptime_seconds);
+                
+                renderService('discord', data.services.discord);
+                renderService('public', data.services.public_com);
+                renderService('webhook', data.services.discord_webhook);
+            } catch (e) {
+                console.error('Failed to load metrics:', e);
+            }
+        }
+        
+        function formatDuration(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            return `${hrs}h ${mins}m`;
+        }
+        
+        function getErrorClass(rate) {
+            if (rate === 0) return 'success';
+            if (rate < 5) return 'warning';
+            return 'error';
+        }
+        
+        function renderService(name, data) {
+            const container = document.getElementById(name + '-metrics');
+            if (!data) {
+                container.innerHTML = '<p>No data available</p>';
+                return;
+            }
+            
+            let html = `
+                <div class="metric">
+                    <span class="metric-label">Total Requests</span>
+                    <span class="metric-value">${data.total_requests}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Successful</span>
+                    <span class="metric-value success">${data.successful}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Failed</span>
+                    <span class="metric-value ${data.failed > 0 ? 'error' : 'success'}">${data.failed}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Rate Limited (429)</span>
+                    <span class="metric-value ${data.rate_limited > 0 ? 'warning' : 'success'}">${data.rate_limited}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Error Rate</span>
+                    <span class="metric-value ${getErrorClass(data.error_rate_pct)}">${data.error_rate_pct}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg / p50 / p95 / p99 (ms)</span>
+                    <span class="metric-value">${data.avg_response_time_ms} / ${data.latency_ms?.p50 ?? 0} / ${data.latency_ms?.p95 ?? 0} / ${data.latency_ms?.p99 ?? 0}</span>
+                </div>
+            `;
+
+            // Endpoint breakdown — now with per-endpoint latency
+            if (data.endpoint_breakdown && Object.keys(data.endpoint_breakdown).length > 0) {
+                html += '<h3 style="margin-top: 20px; color: #a0a0a0; font-size: 14px;">Endpoints</h3><table>';
+                html += '<tr><th>Endpoint</th><th>Calls</th><th>Errors</th><th>429s</th><th>avg ms</th><th>p50</th><th>p95</th></tr>';
+                for (const [ep, stats] of Object.entries(data.endpoint_breakdown)) {
+                    html += `<tr>
+                        <td class="endpoint">${ep}</td>
+                        <td>${stats.count}</td>
+                        <td class="${stats.errors > 0 ? 'status-error' : ''}">${stats.errors}</td>
+                        <td class="${stats.rate_limited > 0 ? 'status-warn' : ''}">${stats.rate_limited}</td>
+                        <td>${stats.avg_ms ?? 0}</td>
+                        <td>${stats.p50_ms ?? 0}</td>
+                        <td>${stats.p95_ms ?? 0}</td>
+                    </tr>`;
+                }
+                html += '</table>';
+            }
+            
+            // Recent failures
+            if (data.recent_failures && data.recent_failures.length > 0) {
+                html += '<h3 style="margin-top: 20px; color: #e94560; font-size: 14px;">Recent Failures</h3>';
+                html += '<div class="failures">';
+                for (const fail of data.recent_failures.slice().reverse()) {
+                    html += `<div class="failure-item">
+                        <strong>${fail.timestamp.split('T')[1].split('.')[0]}</strong> 
+                        ${fail.endpoint} - HTTP ${fail.status_code}
+                        ${fail.error ? '<br><span style="color:#a0a0a0">' + fail.error.substring(0, 100) + '</span>' : ''}
+                    </div>`;
+                }
+                html += '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        // Auto-refresh every 30 seconds
+        loadMetrics();
+        setInterval(loadMetrics, 30000);
+    </script>
+</body>
+</html>
